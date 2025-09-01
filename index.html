@@ -1,123 +1,48 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<title>AR Grab Simulation</title>
-<style>
-  body { margin: 0; overflow: hidden; }
-  canvas { display: block; touch-action: none; }
-</style>
+  <meta charset="utf-8">
+  <title>Markerless AR Test</title>
+  <style>
+    body { margin: 0; overflow: hidden; }
+    canvas { display: block; }
+  </style>
 </head>
 <body>
 <script type="module">
-import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.165/build/three.module.js';
-import { ARButton } from 'https://cdn.jsdelivr.net/npm/three@0.165/examples/jsm/webxr/ARButton.js';
+  import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.165/build/three.module.js';
+  import { ARButton } from 'https://cdn.jsdelivr.net/npm/three@0.165/examples/jsm/webxr/ARButton.js';
 
-const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera();
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.xr.enabled = true;
-document.body.appendChild(renderer.domElement);
+  // Scene + Camera
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera();
 
-// AR Button
-document.body.appendChild(ARButton.createButton(renderer, { requiredFeatures: ['hit-test'] }));
+  // Renderer
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.xr.enabled = true;
+  document.body.appendChild(renderer.domElement);
 
-// Lighting
-const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
-scene.add(light);
+  // AR Button
+  document.body.appendChild(ARButton.createButton(renderer, { requiredFeatures: ['hit-test'] }));
 
-// Cubes
-const cubes = [];
-let selectedCube = null;
-let prevDist = 0;
-let localSpace = null;
-let hitTestSource = null;
+  // Cube
+  const geometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
+  const material = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
+  const cube = new THREE.Mesh(geometry, material);
+  cube.position.set(0, 0, -0.5); // setengah meter di depan kamera
+  scene.add(cube);
 
-// Setup AR session hit-test
-renderer.xr.addEventListener('sessionstart', async () => {
-  const session = renderer.xr.getSession();
-  const viewerSpace = await session.requestReferenceSpace('viewer');
-  hitTestSource = await session.requestHitTestSource({ space: viewerSpace });
-  localSpace = await session.requestReferenceSpace('local');
-});
+  // Lighting
+  const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
+  scene.add(light);
 
-// Tap-to-place or pick cube
-renderer.domElement.addEventListener('touchstart', async (event) => {
-  event.preventDefault();
-  if(event.touches.length === 1){
-    const touch = event.touches[0];
-    const x = (touch.clientX / window.innerWidth) * 2 - 1;
-    const y = -(touch.clientY / window.innerHeight) * 2 + 1;
-
-    const raycaster = new THREE.Raycaster();
-    raycaster.setFromCamera({x,y}, camera);
-    const intersects = raycaster.intersectObjects(cubes);
-    if(intersects.length > 0){
-      selectedCube = intersects[0].object;
-      return;
-    }
-
-    // hit-test untuk spawn cube
-    const frame = renderer.xr.getFrame();
-    if(hitTestSource && frame){
-      const hits = frame.getHitTestResults(hitTestSource);
-      if(hits.length > 0){
-        const hit = hits[0];
-        const pose = hit.getPose(localSpace);
-        const geometry = new THREE.BoxGeometry(0.2,0.2,0.2);
-        const material = new THREE.MeshStandardMaterial({ color: Math.random()*0xffffff });
-        const cube = new THREE.Mesh(geometry, material);
-        cube.position.set(pose.transform.position.x, pose.transform.position.y, pose.transform.position.z);
-        scene.add(cube);
-        cubes.push(cube);
-        selectedCube = cube;
-      }
-    }
-  }
-});
-
-// Drag, pinch, rotate
-renderer.domElement.addEventListener('touchmove', (event)=>{
-  event.preventDefault();
-  if(event.touches.length === 1 && selectedCube){
-    // drag satu jari (simulasi genggaman)
-    const touch = event.touches[0];
-    const x = (touch.clientX / window.innerWidth) * 2 - 1;
-    const y = -(touch.clientY / window.innerHeight) * 2 + 1;
-    const raycaster = new THREE.Raycaster();
-    raycaster.setFromCamera({x, y}, camera);
-    const intersects = raycaster.intersectObjects(cubes);
-    if(intersects.length > 0){
-      selectedCube.position.copy(intersects[0].point);
-    }
-  } else if(event.touches.length === 2 && selectedCube){
-    // pinch-to-scale + rotate
-    const dx = event.touches[0].clientX - event.touches[1].clientX;
-    const dy = event.touches[0].clientY - event.touches[1].clientY;
-    const dist = Math.sqrt(dx*dx + dy*dy);
-
-    if(prevDist > 0){
-      const scaleFactor = dist / prevDist;
-      selectedCube.scale.multiplyScalar(scaleFactor);
-
-      // rotate sederhana berdasarkan delta X
-      const deltaX = dx - prevDist;
-      selectedCube.rotation.y += deltaX * 0.01;
-    }
-    prevDist = dist;
-  }
-});
-
-// Release cube
-renderer.domElement.addEventListener('touchend', ()=>{
-  selectedCube = null;
-  prevDist = 0;
-});
-
-renderer.setAnimationLoop(()=>{
-  renderer.render(scene, camera);
-});
+  // Animate
+  renderer.setAnimationLoop(() => {
+    cube.rotation.x += 0.01;
+    cube.rotation.y += 0.01;
+    renderer.render(scene, camera);
+  });
 </script>
 </body>
 </html>
